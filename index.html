@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZONESCAN — Supply &amp; Demand Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0e13;
+    --panel: #10161d;
+    --panel-2: #141b23;
+    --line: #1e2731;
+    --line-soft: #182028;
+    --text: #e7edf3;
+    --text-dim: #7d8a97;
+    --text-faint: #4c5966;
+    --demand: #35d68f;
+    --demand-dim: #1c6b48;
+    --demand-bg: rgba(53,214,143,0.10);
+    --supply: #ff5c62;
+    --supply-dim: #8a2f33;
+    --supply-bg: rgba(255,92,98,0.10);
+    --amber: #ffb454;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;}
+  ::selection{background:var(--demand-dim);color:#fff;}
+
+  .wrap{max-width:1400px;margin:0 auto;padding:22px 20px 60px;}
+
+  /* header */
+  .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+       border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;}
+  .hdr-left{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .logo{font-family:var(--mono);font-weight:700;font-size:20px;letter-spacing:0.5px;color:var(--text);}
+  .logo span{color:var(--demand);}
+  .tagline{font-size:12.5px;color:var(--text-dim);font-family:var(--sans);}
+  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--demand);
+             box-shadow:0 0 0 0 rgba(53,214,143,.6);animation:pulse 2s infinite;margin-right:6px;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(53,214,143,.5);}
+    70%{box-shadow:0 0 0 6px rgba(53,214,143,0);}
+    100%{box-shadow:0 0 0 0 rgba(53,214,143,0);}
+  }
+  .status-line{font-family:var(--mono);font-size:11.5px;color:var(--text-faint);}
+
+  /* controls */
+  .controls{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+             display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:18px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-faint);font-weight:600;}
+  select, input[type=text], input[type=number]{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    font-family:var(--mono);font-size:12.5px;padding:8px 10px;border-radius:6px;outline:none;
+  }
+  select:focus, input:focus{border-color:var(--demand-dim);}
+  .field.symbols{flex:1 1 320px;min-width:260px;}
+  .field.symbols textarea{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:8px 10px;border-radius:6px;outline:none;
+    resize:vertical;min-height:38px;max-height:90px;line-height:1.5;
+  }
+  .field.symbols textarea:focus{border-color:var(--demand-dim);}
+  .btn{
+    background:var(--demand);color:#04150d;border:none;font-family:var(--mono);font-weight:700;
+    font-size:12.5px;letter-spacing:0.03em;padding:10px 18px;border-radius:6px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;transition:filter .15s ease, transform .1s ease;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{background:var(--line);color:var(--text-faint);cursor:not-allowed;}
+  .btn .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(4,21,13,.35);border-top-color:#04150d;
+             animation:spin .7s linear infinite;display:none;}
+  .btn.loading .spin{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .legend{display:flex;gap:16px;font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-left:auto;flex-wrap:wrap;}
+  .legend b{color:var(--demand);}
+  .legend b.s{color:var(--supply);}
+  .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+
+  /* layout */
+  .grid{display:grid;grid-template-columns:minmax(340px,420px) 1fr;gap:18px;align-items:start;}
+  @media (max-width: 920px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .panel-hdr{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+  .panel-hdr h2{font-size:12px;margin:0;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-dim);font-weight:700;}
+  .panel-hdr .count{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+
+  /* results table */
+  .results{max-height:640px;overflow-y:auto;}
+  table{width:100%;border-collapse:collapse;}
+  thead th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:10px;color:var(--text-faint);
+           text-transform:uppercase;letter-spacing:0.06em;padding:9px 12px;border-bottom:1px solid var(--line);font-weight:600;}
+  tbody tr{cursor:pointer;border-bottom:1px solid var(--line-soft);transition:background .1s ease;}
+  tbody tr:hover{background:var(--panel-2);}
+  tbody tr.active{background:rgba(53,214,143,0.06);}
+  tbody tr.active td:first-child{box-shadow:inset 3px 0 0 var(--demand);}
+  tbody tr.active.supply td:first-child{box-shadow:inset 3px 0 0 var(--supply);}
+  td{padding:10px 12px;font-size:12.5px;vertical-align:middle;}
+  .sym{font-family:var(--mono);font-weight:700;font-size:12.5px;}
+  .tag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;font-weight:700;
+       padding:3px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.03em;}
+  .tag.demand{background:var(--demand-bg);color:var(--demand);}
+  .tag.supply{background:var(--supply-bg);color:var(--supply);}
+  .fresh{color:var(--amber);font-family:var(--mono);font-size:10px;}
+  .tested{color:var(--text-faint);font-family:var(--mono);font-size:10px;}
+  .dist{font-family:var(--mono);font-size:12px;}
+  .dist.hot{color:var(--amber);font-weight:700;}
+  .price{font-family:var(--mono);color:var(--text-dim);font-size:11.5px;}
+  .empty{padding:40px 20px;text-align:center;color:var(--text-faint);font-size:12.5px;line-height:1.7;}
+  .empty b{color:var(--text-dim);}
+  .row-err{color:var(--text-faint);font-size:11px;font-family:var(--mono);padding:6px 16px;}
+
+  /* chart panel */
+  .chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .chart-title{display:flex;align-items:baseline;gap:10px;}
+  .chart-title .sym-big{font-family:var(--mono);font-weight:700;font-size:16px;}
+  .chart-title .zone-badge{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:4px;font-weight:700;}
+  .chart-title .zone-badge.demand{background:var(--demand-bg);color:var(--demand);}
+  .chart-title .zone-badge.supply{background:var(--supply-bg);color:var(--supply);}
+  .chart-meta{font-family:var(--mono);font-size:11px;color:var(--text-faint);display:flex;gap:14px;flex-wrap:wrap;}
+  .chart-meta span b{color:var(--text-dim);}
+  .chart-wrap{position:relative;padding:14px;}
+  canvas#chart{width:100%;height:460px;display:block;}
+  .chart-empty{padding:80px 20px;text-align:center;color:var(--text-faint);font-size:12.5px;}
+
+  .note{margin-top:16px;font-size:11px;color:var(--text-faint);line-height:1.7;font-family:var(--sans);
+        border-top:1px solid var(--line);padding-top:14px;}
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="logo">ZONE<span>SCAN</span></div>
+      <div class="tagline">Pemindai zona Supply &amp; Demand — deteksi base sebelum pergerakan impulsif, data langsung dari Binance</div>
+    </div>
+    <div class="status-line" id="statusLine"><span class="live-dot"></span>siap</div>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label>Kategori</label>
+      <select id="category">
+        <option value="top" selected>🔥 Top Volume (Crypto)</option>
+        <option value="bstock">📈 bStocks (Saham Tokenisasi)</option>
+        <option value="all">🌐 Semua Pair USDT</option>
+        <option value="custom">✍️ Custom (isi manual)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Jumlah pair</label>
+      <input type="number" id="topN" value="40" min="5" max="150" step="5" style="width:70px;">
+    </div>
+    <div class="field">
+      <label>Timeframe</label>
+      <select id="tf">
+        <option value="15m">15m</option>
+        <option value="1h" selected>1h</option>
+        <option value="4h">4h</option>
+        <option value="1d">1D</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Jumlah candle</label>
+      <input type="number" id="limit" value="240" min="100" max="500" step="20" style="width:80px;">
+    </div>
+    <button class="btn" id="loadBtn" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);">
+      <span class="spin" id="loadSpin"></span><span id="loadLabel">⟳ Muat Daftar Live</span>
+    </button>
+    <div class="field symbols">
+      <label>Pair yang akan dipindai (bisa diedit manual)</label>
+      <textarea id="symbols">BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT, XRPUSDT, ADAUSDT, DOGEUSDT, AVAXUSDT, LINKUSDT, DOTUSDT</textarea>
+    </div>
+    <button class="btn" id="scanBtn"><span class="spin"></span><span id="scanLabel">▶ Scan</span></button>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--demand)"></i>Demand</span>
+      <span><i class="swatch" style="background:var(--supply)"></i>Supply</span>
+    </div>
+  </div>
+  <div class="status-line" id="listCounter" style="margin:-8px 0 18px 2px;">memuat data pair live dari Binance…</div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-hdr">
+        <h2>Hasil Pemindaian</h2>
+        <div class="count" id="resultCount">0 zona</div>
+      </div>
+      <div class="results" id="results">
+        <div class="empty">Klik <b>Scan</b> untuk memindai pair di atas.<br>Zona akan diurutkan dari yang paling dekat dengan harga saat ini.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-head" id="chartHead" style="display:none;">
+        <div class="chart-title">
+          <span class="sym-big" id="chartSym">—</span>
+          <span class="zone-badge" id="chartZoneBadge"></span>
+        </div>
+        <div class="chart-meta" id="chartMeta"></div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-empty" id="chartEmpty">Pilih salah satu baris hasil untuk melihat chart zona-nya.</div>
+        <canvas id="chart" style="display:none;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b style="color:var(--text-dim)">Cara kerja:</b> untuk tiap candle, sistem membandingkan range-nya dengan volatilitas rata-rata (baseline).
+    Jika sebuah candle kecil ("base") diikuti pergerakan tajam beberapa candle ke depan yang jauh melebihi baseline itu, base tersebut ditandai
+    sebagai zona <b style="color:var(--demand)">Demand</b> (jika pergerakan naik) atau <b style="color:var(--supply)">Supply</b> (jika pergerakan turun) —
+    persis seperti panah merah pada contoh chart kamu. Zona yang harganya sudah ditembus (close melewati batas zona) otomatis dibuang karena dianggap tidak valid lagi.
+    Ini alat edukasi berbasis price action, bukan sinyal beli/jual otomatis — selalu konfirmasi dengan analisismu sendiri.
+  </div>
+
+</div>
+
+<script>
+const API = "https://api.binance.com/api/v3/klines";
+const EXCHANGE_INFO_API = "https://api.binance.com/api/v3/exchangeInfo";
+const TICKER_24H_API = "https://api.binance.com/api/v3/ticker/24hr";
+let cache = {}; // symbol -> candles
+let currentResults = [];
+let activeIdx = -1;
+let exchangeMeta = null; // { activeUsdtSymbols: Set, bstockSymbols: [], allSymbolsInfo: [] }
+
+// Curated base-asset tickers for Binance's bStocks (tokenized US equities) product.
+// Cross-checked live against exchangeInfo below, so any that get delisted drop out automatically.
+const BSTOCK_BASES = [
+  "CRCLB","MUB","NVDAB","SNDKB","TSLAB","SPCXB","AMDB","EWYB","INTCB","MSTRB",
+  "ALABB","ASMLB","ASTSB","BMNRB","COHRB","CRDOB","IRENB","NFLXB","SMCIB","USARB",
+  "GOOGLB","COINB","SOXLB","DRAMB","AAPLB","AMZNB"
+];
+
+const LEVERAGED_RE = /(UP|DOWN|BULL|BEAR)USDT$/;
+
+async function loadExchangeMeta(){
+  const [infoRes, tickerRes] = await Promise.all([
+    fetch(EXCHANGE_INFO_API),
+    fetch(TICKER_24H_API)
+  ]);
+  if(!infoRes.ok || !tickerRes.ok) throw new Error("gagal memuat metadata Binance");
+  const info = await infoRes.json();
+  const tickers = await tickerRes.json();
+
+  const volMap = {};
+  tickers.forEach(t => { volMap[t.symbol] = parseFloat(t.quoteVolume) || 0; });
+
+  // Only symbols currently TRADING on spot & quoted in USDT survive here —
+  // this is what automatically excludes anything Binance has delisted.
+  const active = info.symbols.filter(s =>
+    s.status === 'TRADING' && s.quoteAsset === 'USDT' && s.isSpotTradingAllowed !== false
+  ).map(s => ({
+    symbol: s.symbol,
+    base: s.baseAsset,
+    volume: volMap[s.symbol] || 0,
+    isBstock: BSTOCK_BASES.includes(s.baseAsset)
+  }));
+
+  const bstocks = active.filter(s => s.isBstock).sort((a,b) => b.volume - a.volume);
+  const cryptoTop = active.filter(s => !s.isBstock && !LEVERAGED_RE.test(s.symbol))
+                           .sort((a,b) => b.volume - a.volume);
+
+  exchangeMeta = { active, bstocks, cryptoTop };
+  return exchangeMeta;
+}
+
+function updateListCounter(extra){
+  const el = document.getElementById('listCounter');
+  if(!exchangeMeta){ el.textContent = extra || ''; return; }
+  el.textContent = `${exchangeMeta.active.length} pair USDT aktif di Binance saat ini • ${exchangeMeta.bstocks.length} di antaranya bStocks${extra ? ' • ' + extra : ''}`;
+}
+
+async function loadCategoryList(){
+  const btn = document.getElementById('loadBtn');
+  const spin = document.getElementById('loadSpin');
+  const label = document.getElementById('loadLabel');
+  const category = document.getElementById('category').value;
+  const topN = Math.min(150, Math.max(5, parseInt(document.getElementById('topN').value) || 40));
+
+  if(category === 'custom') return; // user edits textarea directly
+
+  btn.disabled = true; spin.style.display='inline-block'; label.textContent = 'Memuat...';
+  try{
+    if(!exchangeMeta) await loadExchangeMeta();
+    let list = [];
+    if(category === 'top') list = exchangeMeta.cryptoTop.slice(0, topN);
+    else if(category === 'bstock') list = exchangeMeta.bstocks.slice(0, topN);
+    else if(category === 'all') list = exchangeMeta.active.slice(0, topN);
+
+    document.getElementById('symbols').value = list.map(s => s.symbol).join(', ');
+    const label2 = category === 'bstock' ? `${list.length} bStocks dimuat` : `${list.length} pair dimuat ke daftar scan`;
+    updateListCounter(label2);
+  }catch(e){
+    updateListCounter('gagal memuat daftar live: ' + e.message);
+  }
+  btn.disabled = false; spin.style.display='none'; label.textContent = '⟳ Muat Daftar Live';
+}
+
+function fmtPrice(p){
+  if(p >= 1000) return p.toLocaleString('en-US',{maximumFractionDigits:2});
+  if(p >= 1) return p.toFixed(4);
+  if(p >= 0.01) return p.toFixed(6);
+  return p.toPrecision(4);
+}
+
+async function fetchKlines(symbol, interval, limit){
+  const url = `${API}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  const raw = await res.json();
+  if(!Array.isArray(raw) || raw.length === 0) throw new Error("no data");
+  return raw.map(k => ({
+    t: k[0], o: parseFloat(k[1]), h: parseFloat(k[2]),
+    l: parseFloat(k[3]), c: parseFloat(k[4]), v: parseFloat(k[5])
+  }));
+}
+
+function avgRangeAt(rangePct, i, win){
+  const start = Math.max(0, i - win);
+  const slice = rangePct.slice(start, i);
+  if(slice.length === 0) return rangePct[i] || 0.001;
+  return slice.reduce((a,b)=>a+b,0) / slice.length;
+}
+
+function findZones(candles){
+  const n = candles.length;
+  if(n < 30) return [];
+  const rangePct = candles.map(c => (c.h - c.l) / c.c);
+  const LOOKAHEAD = 5, WIN = 20, IMPULSE_FACTOR = 3.2;
+  let raw = [];
+
+  for(let i = 5; i < n - 1; i++){
+    const avgR = avgRangeAt(rangePct, i, WIN);
+    if(avgR <= 0) continue;
+    const base = candles[i];
+    const baseRangePct = (base.h - base.l) / base.c;
+    if(baseRangePct > avgR * 1.15) continue; // base itself must be relatively calm
+
+    const fwdEnd = Math.min(n - 1, i + LOOKAHEAD);
+    let fwdHigh = -Infinity, fwdLow = Infinity;
+    for(let j = i + 1; j <= fwdEnd; j++){
+      fwdHigh = Math.max(fwdHigh, candles[j].h);
+      fwdLow = Math.min(fwdLow, candles[j].l);
+    }
+    const upMovePct = (fwdHigh - base.c) / base.c;
+    const downMovePct = (base.c - fwdLow) / base.c;
+
+    if(upMovePct > avgR * IMPULSE_FACTOR){
+      let lo = base.l, hi = base.h, s = i;
+      for(let k = i - 1; k >= Math.max(0, i - 3); k--){
+        const rp = (candles[k].h - candles[k].l) / candles[k].c;
+        if(rp <= avgR * 1.25){ lo = Math.min(lo, candles[k].l); hi = Math.max(hi, candles[k].h); s = k; }
+        else break;
+      }
+      raw.push({ type:'demand', low:lo, high:hi, baseIdx:i, startIdx:s, implIdx:i+1, strength: upMovePct/avgR });
+    }
+    if(downMovePct > avgR * IMPULSE_FACTOR){
+      let lo = base.l, hi = base.h, s = i;
+      for(let k = i - 1; k >= Math.max(0, i - 3); k--){
+        const rp = (candles[k].h - candles[k].l) / candles[k].c;
+        if(rp <= avgR * 1.25){ lo = Math.min(lo, candles[k].l); hi = Math.max(hi, candles[k].h); s = k; }
+        else break;
+      }
+      raw.push({ type:'supply', low:lo, high:hi, baseIdx:i, startIdx:s, implIdx:i+1, strength: downMovePct/avgR });
+    }
+  }
+
+  raw.sort((a,b) => a.baseIdx - b.baseIdx);
+  const merged = [];
+  for(const z of raw){
+    const last = merged[merged.length - 1];
+    if(last && z.type === last.type && z.baseIdx - last.baseIdx <= 2){
+      if(z.strength > last.strength) merged[merged.length - 1] = z;
+    } else merged.push(z);
+  }
+
+  for(const z of merged){
+    let tested = false, broken = false;
+    for(let j = z.implIdx + 1; j < n; j++){
+      const c = candles[j];
+      if(z.type === 'demand'){
+        if(c.l <= z.high) tested = true;
+        if(c.c < z.low) broken = true;
+      } else {
+        if(c.h >= z.low) tested = true;
+        if(c.c > z.high) broken = true;
+      }
+    }
+    z.status = broken ? 'broken' : (tested ? 'tested' : 'fresh');
+    z.formedAt = candles[z.baseIdx].t;
+  }
+  return merged.filter(z => z.status !== 'broken');
+}
+
+function bestZonesForSymbol(symbol, candles){
+  const zones = findZones(candles);
+  if(zones.length === 0) return [];
+  const price = candles[candles.length - 1].c;
+  return zones.map(z => {
+    const distPct = z.type === 'demand'
+      ? (price - z.high) / price
+      : (z.low - price) / price;
+    return { symbol, candles, price, ...z, distPct };
+  });
+}
+
+function setStatus(text){
+  document.getElementById('statusLine').innerHTML = `<span class="live-dot"></span>${text}`;
+}
+
+async function runScan(){
+  const btn = document.getElementById('scanBtn');
+  const label = document.getElementById('scanLabel');
+  btn.disabled = true; btn.classList.add('loading'); label.textContent = 'Memindai...';
+
+  const interval = document.getElementById('tf').value;
+  const limit = Math.min(500, Math.max(100, parseInt(document.getElementById('limit').value) || 240));
+  const symbols = document.getElementById('symbols').value
+    .split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+
+  const resultsEl = document.getElementById('results');
+  resultsEl.innerHTML = '';
+  let all = [];
+  let errors = [];
+  cache = {};
+
+  const BATCH = 6;
+  for(let i = 0; i < symbols.length; i += BATCH){
+    const batch = symbols.slice(i, i + BATCH);
+    setStatus(`memindai ${Math.min(i+BATCH, symbols.length)}/${symbols.length} pair...`);
+    await Promise.all(batch.map(async sym => {
+      try{
+        const candles = await fetchKlines(sym, interval, limit);
+        cache[sym] = candles;
+        const zones = bestZonesForSymbol(sym, candles);
+        // keep only the most recent zone of each type per symbol
+        const latestDemand = zones.filter(z=>z.type==='demand').sort((a,b)=>b.baseIdx-a.baseIdx)[0];
+        const latestSupply = zones.filter(z=>z.type==='supply').sort((a,b)=>b.baseIdx-a.baseIdx)[0];
+        [latestDemand, latestSupply].forEach(z => { if(z) all.push(z); });
+      }catch(e){
+        errors.push(`${sym}: ${e.message}`);
+      }
+    }));
+  }
+
+  all.sort((a,b) => Math.abs(a.distPct) - Math.abs(b.distPct));
+  currentResults = all;
+  renderResults(all, errors);
+
+  btn.disabled = false; btn.classList.remove('loading'); label.textContent = '▶ Scan';
+  setStatus(`selesai — ${all.length} zona ditemukan dari ${symbols.length} pair${errors.length? `, ${errors.length} gagal`:''}`);
+
+  if(all.length > 0){ selectResult(0); }
+}
+
+function renderResults(all, errors){
+  const resultsEl = document.getElementById('results');
+  document.getElementById('resultCount').textContent = `${all.length} zona`;
+
+  if(all.length === 0){
+    resultsEl.innerHTML = `<div class="empty">Tidak ada zona valid ditemukan.<br>Coba timeframe lain atau tambah jumlah candle.</div>`;
+    return;
+  }
+
+  const rows = all.map((z, idx) => {
+    const hot = Math.abs(z.distPct) < 0.02;
+    const distStr = (z.distPct >= 0 ? '+' : '') + (z.distPct*100).toFixed(2) + '%';
+    return `
+      <tr data-idx="${idx}" class="${z.type === 'supply' ? 'supply' : ''}">
+        <td>
+          <div class="sym">${z.symbol}</div>
+          <div class="price">$${fmtPrice(z.price)}</div>
+        </td>
+        <td><span class="tag ${z.type}">${z.type === 'demand' ? 'Demand' : 'Supply'}</span></td>
+        <td class="price">$${fmtPrice(z.low)} – $${fmtPrice(z.high)}</td>
+        <td class="dist ${hot ? 'hot':''}">${distStr}</td>
+        <td>${z.status === 'fresh' ? '<span class="fresh">● fresh</span>' : '<span class="tested">○ tested</span>'}</td>
+      </tr>`;
+  }).join('');
+
+  resultsEl.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Pair</th><th>Zona</th><th>Range harga</th><th>Jarak</th><th>Status</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${errors.length ? `<div class="row-err">Gagal memuat: ${errors.slice(0,6).join(', ')}${errors.length>6?'…':''}</div>` : ''}
+  `;
+
+  resultsEl.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => selectResult(parseInt(tr.dataset.idx)));
+  });
+}
+
+function selectResult(idx){
+  activeIdx = idx;
+  document.querySelectorAll('#results tbody tr').forEach(tr => {
+    tr.classList.toggle('active', parseInt(tr.dataset.idx) === idx);
+  });
+  const z = currentResults[idx];
+  if(!z) return;
+  document.getElementById('chartHead').style.display = 'flex';
+  document.getElementById('chartEmpty').style.display = 'none';
+  document.getElementById('chart').style.display = 'block';
+  document.getElementById('chartSym').textContent = z.symbol;
+  const badge = document.getElementById('chartZoneBadge');
+  badge.textContent = z.type === 'demand' ? 'DEMAND ZONE' : 'SUPPLY ZONE';
+  badge.className = 'zone-badge ' + z.type;
+  document.getElementById('chartMeta').innerHTML =
+    `<span>Range: <b>$${fmtPrice(z.low)} – $${fmtPrice(z.high)}</b></span>` +
+    `<span>Harga: <b>$${fmtPrice(z.price)}</b></span>` +
+    `<span>Jarak: <b>${(z.distPct>=0?'+':'')}${(z.distPct*100).toFixed(2)}%</b></span>` +
+    `<span>Status: <b>${z.status}</b></span>`;
+  drawChart(z);
+}
+
+function drawChart(z){
+  const canvas = document.getElementById('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth, cssH = 460;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  canvas.style.height = cssH + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const candles = z.candles;
+  const n = candles.length;
+  const visibleStart = Math.max(0, z.startIdx - 25);
+  const visible = candles.slice(visibleStart);
+  const count = visible.length;
+
+  const padL = 8, padR = 62, padT = 18, padB = 26;
+  const plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+  const cw = plotW / count;
+  const candleW = Math.max(2, Math.min(9, cw * 0.62));
+
+  let pMin = Infinity, pMax = -Infinity;
+  visible.forEach(c => { pMin = Math.min(pMin, c.l); pMax = Math.max(pMax, c.h); });
+  pMin = Math.min(pMin, z.low); pMax = Math.max(pMax, z.high);
+  const pad = (pMax - pMin) * 0.08;
+  pMin -= pad; pMax += pad;
+
+  const xAt = i => padL + i * cw + cw/2;
+  const yAt = p => padT + (pMax - p) / (pMax - pMin) * plotH;
+
+  // grid
+  ctx.strokeStyle = '#182028';
+  ctx.lineWidth = 1;
+  ctx.font = '10px JetBrains Mono, monospace';
+  ctx.fillStyle = '#4c5966';
+  for(let g=0; g<=4; g++){
+    const py = padT + (plotH/4)*g;
+    ctx.beginPath(); ctx.moveTo(padL,py); ctx.lineTo(cssW-padR,py); ctx.stroke();
+    const priceAtY = pMax - (pMax-pMin)*(g/4);
+    ctx.fillText('$'+fmtPrice(priceAtY), cssW-padR+8, py+3);
+  }
+
+  // zone rectangle
+  const zColor = z.type === 'demand' ? 'rgba(53,214,143,0.14)' : 'rgba(255,92,98,0.14)';
+  const zBorder = z.type === 'demand' ? '#35d68f' : '#ff5c62';
+  const zoneStartIdx = z.startIdx - visibleStart;
+  const zx = padL + Math.max(0, zoneStartIdx) * cw;
+  const zy1 = yAt(z.high), zy2 = yAt(z.low);
+  ctx.fillStyle = zColor;
+  ctx.fillRect(zx, zy1, cssW - padR - zx, zy2 - zy1);
+  ctx.strokeStyle = zBorder;
+  ctx.setLineDash([4,3]);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(zx, zy1, cssW - padR - zx, zy2 - zy1);
+  ctx.setLineDash([]);
+
+  // candles
+  visible.forEach((c, i) => {
+    const x = xAt(i);
+    const up = c.c >= c.o;
+    ctx.strokeStyle = up ? '#7dd3fc' : '#e2a04a';
+    ctx.fillStyle = up ? '#3a7bd5' : '#e2a04a';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yAt(c.h)); ctx.lineTo(x, yAt(c.l)); ctx.stroke();
+    const yO = yAt(c.o), yC = yAt(c.c);
+    const top = Math.min(yO,yC), h = Math.max(1, Math.abs(yC-yO));
+    ctx.fillRect(x - candleW/2, top, candleW, h);
+  });
+
+  // arrow pointing to base candle (mimic screenshot)
+  const baseX = xAt(z.baseIdx - visibleStart);
+  const baseY = z.type === 'demand' ? yAt(z.low) : yAt(z.high);
+  const labelX = baseX + 70, labelY = baseY + (z.type === 'demand' ? 46 : -46);
+  ctx.strokeStyle = '#ff4d4f';
+  ctx.fillStyle = '#ff4d4f';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(labelX, labelY);
+  ctx.lineTo(baseX + 8, baseY + (z.type==='demand' ? 6 : -6));
+  ctx.stroke();
+  // arrowhead
+  const ang = Math.atan2(baseY - labelY, baseX - labelX);
+  ctx.beginPath();
+  ctx.moveTo(baseX + 8, baseY + (z.type==='demand' ? 6 : -6));
+  ctx.lineTo(baseX + 8 - 7*Math.cos(ang-0.4), baseY + (z.type==='demand'?6:-6) - 7*Math.sin(ang-0.4));
+  ctx.lineTo(baseX + 8 - 7*Math.cos(ang+0.4), baseY + (z.type==='demand'?6:-6) - 7*Math.sin(ang+0.4));
+  ctx.closePath(); ctx.fill();
+
+  ctx.font = '600 11px JetBrains Mono, monospace';
+  ctx.fillStyle = z.type === 'demand' ? '#35d68f' : '#ff5c62';
+  const label = z.type === 'demand' ? 'DEMAND' : 'SUPPLY';
+  ctx.fillText(label, labelX + 4, labelY + 4);
+}
+
+document.getElementById('scanBtn').addEventListener('click', runScan);
+document.getElementById('loadBtn').addEventListener('click', loadCategoryList);
+document.getElementById('category').addEventListener('change', (e) => {
+  const isCustom = e.target.value === 'custom';
+  document.getElementById('loadBtn').style.display = isCustom ? 'none' : 'flex';
+  if(!isCustom) loadCategoryList();
+});
+window.addEventListener('resize', () => { if(activeIdx >= 0) drawChart(currentResults[activeIdx]); });
+
+// auto-load the live top-volume list on first open so the tool isn't stuck with a stale default
+(async () => {
+  try{
+    await loadExchangeMeta();
+    updateListCounter();
+    await loadCategoryList();
+  }catch(e){
+    updateListCounter('gagal memuat data live dari Binance: ' + e.message + ' — daftar default tetap bisa dipindai manual.');
+  }
+})();
+</script>
+</body>
+</html>
